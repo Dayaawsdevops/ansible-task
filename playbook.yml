@@ -1,0 +1,92 @@
+---
+- name: DevOps Assessment Playbook
+  hosts: all
+  become: yes
+  vars_files:
+    - group_vars/all.yml
+
+  tasks:
+    - name: Install CA certificates
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: 0644
+      with_items:
+        - { src: "files/CA1.crt", dest: "/usr/local/share/ca-certificates/CA1.crt" }
+        - { src: "files/CA2.crt", dest: "/usr/local/share/ca-certificates/CA2.crt" }
+        - { src: "files/CA3.crt", dest: "/usr/local/share/ca-certificates/CA3.crt" }
+
+    - name: Update CA certificates
+      command: update-ca-certificates
+
+    - name: Check custom CA certificates validity
+      command: openssl x509 -in /usr/local/share/ca-certificates/{{ item }}.crt -noout -checkend 0
+      with_items:
+        - CA1
+        - CA2
+        - CA3
+      register: ca_cert_check
+      failed_when: "'certificate has expired' in item.stderr"
+      ignore_errors: yes
+
+    - name: Create deployment directory
+      file:
+        path: "{{ deployment_folder }}"
+        state: directory
+
+    - name: Create virtual environment
+      pip:
+        virtualenv: "{{ deployment_folder }}/venv"
+        virtualenv_command: python3 -m venv
+
+    - name: Copy application wheel file
+      copy:
+        src: "files/{{ wheel_file }}"
+        dest: "{{ deployment_folder }}/{{ wheel_file }}"
+
+    - name: Install application in virtual environment
+      pip:
+        requirements: "{{ deployment_folder }}/{{ wheel_file }}"
+        virtualenv: "{{ deployment_folder }}/venv"
+
+    - name: Create instance directory
+      file:
+        path: "{{ instance_path }}"
+        state: directory
+
+    - name: Copy configuration file
+      template:
+        src: "files/config.py"
+        dest: "{{ instance_path }}/config.py"
+
+    - name: Copy run script
+      template:
+        src: "files/run.sh"
+        dest: "{{ deployment_folder }}/run.sh"
+        mode: 0755
+
+    - name: Create systemd service file
+      copy:
+        content: |
+          [Unit]
+          Description=Gunicorn instance to serve example application
+          After=network.target
+
+          [Service]
+          User=www-data
+          Group=www-data
+          WorkingDirectory={{ deployment_folder }}
+          Environment="INSTANCE_PATH={{ instance_path }}"
+          ExecStart={{ deployment_folder }}/venv/bin/gunicorn --workers 3 --bind 0.0.0.0:{{ port }} app:app
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/example.service
+
+    - name: Start and enable example service
+      systemd:
+        name: example
+        state: started
+        enabled: yes
