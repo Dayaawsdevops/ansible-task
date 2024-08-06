@@ -15,11 +15,12 @@
 
 
 
-
-
-
 ansible_task/
 ├── playbook.yml
+
+
+
+
 ├── files/
 │   ├── CA1.crt
 │   ├── CA2.crt
@@ -27,5 +28,8 @@ ansible_task/
 │   ├── Example-1.1.2-py3-none-any.whl
 │   ├── run.sh
 │   └── config.py
+
+
+
 └── group_vars/
     └── vars.yml
