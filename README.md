@@ -26,3 +26,10 @@ ansible_task/
 │   └── config.py
 └── group_vars/
     └── vars.yml
+
+Ansible-vault added to Certficates
+
+
+
+
+
